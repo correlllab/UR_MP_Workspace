@@ -1,0 +1,9 @@
+[submodule "src/moveit_tutorials"]
+	path = src/moveit_tutorials
+	url = https://github.com/ros-planning/moveit_tutorials.git
+[submodule "src/panda_moveit_config"]
+	path = src/panda_moveit_config
+	url = https://github.com/ros-planning/panda_moveit_config.git
+[submodule "src/vcpkg"]
+	path = src/vcpkg
+	url = https://github.com/microsoft/vcpkg

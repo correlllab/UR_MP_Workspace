@@ -1,6 +1,9 @@
 # UR_MP_Workspace
 Universal Robots Motion Planning ROS1 (Melodic) Workspace
 
+# Download
+* `git clone https://github.com/correlllab/UR_MP_Workspace.git --recursive` (This repo)
+
 # Installation Steps (Ubuntu 18)
 ### Install Qt
 1. Login to Qt: https://www.qt.io/download-open-source

@@ -1,0 +1,26 @@
+<launch> 
+
+<!-- ##### Parameters ##### -->
+
+<!-- command="$(find xacro)/xacro '$(find ur_description)/urdf/ur5_joint_limited_robot.urdf.xacro'" /> -->
+       <!-- command="$(find xacro)/xacro \-\-inorder '$(find ur_description)/urdf/ur5_robot.urdf.xacro'" /> -->
+
+
+<param name="/robot_description" 
+       command="$(find xacro)/xacro '$(find ur_description)/urdf/ur5_joint_limited_robot.urdf.xacro'" />
+<!-- xacro: in-order processing became default in ROS Melodic. You can drop the option. -->
+
+
+<param name="base_link"  type="str"     value="base_link"    />
+<param name="end_link"   type="str"     value="wrist_3_link" />
+<param name="IK_timeout" type="double"  value="0.003"        />
+<param name="IK_epsilon" type="double"  value="1e-5"         />
+
+<!-- ##### Service Node ##### -->
+
+<node pkg="ur_fk_ik" name="UR_FK_IK" type="FK_IK" output="screen" />
+
+<!-- <node name="talker" pkg="rospy_tutorials" type="talker" /> -->
+
+
+</launch>

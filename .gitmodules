@@ -7,3 +7,9 @@
 [submodule "src/vcpkg"]
 	path = src/vcpkg
 	url = https://github.com/microsoft/vcpkg
+[submodule "src/trak_ik"]
+	path = src/trak_ik
+	url = https://jwatson_utah_edu@bitbucket.org/traclabs/trac_ik.git
+[submodule "src/universal_robot"]
+	path = src/universal_robot
+	url = https://github.com/ros-industrial/universal_robot.git

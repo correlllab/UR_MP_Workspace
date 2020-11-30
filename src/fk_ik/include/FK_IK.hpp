@@ -5,21 +5,7 @@
 
 /***** Included Libs *****/
 
-/** Standard **/
-#include <fstream>
-#include <exception>
-#include <signal.h>
-#include <string>
-#include <iostream>
-using std::ifstream;
-using std::string;
-using std::cout;
-using std::endl;
-
-/** Parsing **/
-#include <boost/date_time.hpp>
-#include <tinyxml.h>
-#include <jsoncpp/json/json.h>
+#include "helpers.hpp"
 
 /** Basic ROS **/
 #include <ros/ros.h>
@@ -27,6 +13,7 @@ using std::endl;
 #include <ros/xmlrpc_manager.h>
 
 /** FK/IK/MP **/
+#include <boost/array.hpp>
 #include <trac_ik/trac_ik.hpp>
 #include <kdl/chainiksolverpos_nr_jl.hpp>
 #include <kdl_parser/kdl_parser.hpp>
@@ -49,6 +36,11 @@ ros::ServiceServer FKservice;
 ros::ServiceServer IKservice;
 
 FK_IK_Service( ros::NodeHandle& _nh );
+
+bool /*-*/ check_q( const KDL::JntArray& q );
+KDL::Frame calc_FK( const boost::array<double,6>& jointConfig );
+
+boost::array<double,7> calc_IK( const boost::array<double,22>& bigIKarr );
 
 bool FK_cb( ur_fk_ik::FK::Request& req, ur_fk_ik::FK::Response& rsp );
 bool IK_cb( ur_fk_ik::IK::Request& req, ur_fk_ik::IK::Response& rsp );
@@ -79,8 +71,7 @@ bool paramsOK;
 KDL::Chain    chain; // ---- Kin chain
 u_char /*--*/ N_joints; // # of joints in the kin chain
 KDL::JntArray ll , // ------ lower joint limits
-              ul , // ------ upper joint limits
-              q  ; // ------ Current joint config
+              ul ; // ------ upper joint limits
 
 /** FK Solver **/
 KDL::ChainFkSolverPos_recursive* fk_solver; //(chain); // Forward kin. solver

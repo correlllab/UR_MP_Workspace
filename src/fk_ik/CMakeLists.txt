@@ -45,7 +45,8 @@ find_package( cmake_modules REQUIRED )
 # find_package(Boost REQUIRED COMPONENTS system signals thread)
 
 ### Package-Associated Includes ###
-include_directories( include 
+include_directories( 
+    ${CMAKE_CURRENT_SOURCE_DIR}/include 
     ${catkin_INCLUDE_DIRS} 
 #   ${Boost_INCLUDE_DIRS} 
 #   ${orocos_kdl_INCLUDE_DIRS}
@@ -108,15 +109,15 @@ generate_messages( DEPENDENCIES std_msgs )
 ########### EXECUTABLES ###########
 
 # Files and Paths #
-# set( HLPR_CPP src/helpers.cpp )
+set( HLPR_CPP src/helpers.cpp )
 
 set( EXEC_NAME FK_IK )
-add_executable( ${EXEC_NAME} src/FK_IK.cpp )
+add_executable( ${EXEC_NAME} src/FK_IK.cpp ${HLPR_CPP} )
 add_dependencies( ${EXEC_NAME} 
-    ${catkin_EXPORTED_TARGETS} 
+    # ${catkin_EXPORTED_TARGETS} 
     ${PROJECT_NAME}_generate_messages_cpp 
 )
-target_link_libraries( ${EXEC_NAME} ${ROS_LIBS} ${OTHER_LIBS} ${catkin_LIBRARIES} )
+target_link_libraries( ${EXEC_NAME} ${ROS_LIBS} ${catkin_LIBRARIES} )
 
 # set( EXEC_NAME test2 )
 # add_executable( ${EXEC_NAME} src/moveit_test_02.cpp )

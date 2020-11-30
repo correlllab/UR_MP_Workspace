@@ -11,10 +11,15 @@
 <!-- xacro: in-order processing became default in ROS Melodic. You can drop the option. -->
 
 
-<param name="base_link"  type="str"     value="base_link"    />
-<param name="end_link"   type="str"     value="wrist_3_link" />
-<param name="IK_timeout" type="double"  value="0.003"        />
-<param name="IK_epsilon" type="double"  value="1e-5"         />
+<param name="base_link"          type="str"     value="base_link"      />
+<param name="end_link"           type="str"     value="wrist_3_link"   />
+<param name="IK_timeout"         type="double"  value="0.003"          />
+<param name="IK_epsilon"         type="double"  value="1e-5"           />
+<param name="UR_FKservice_TOPIC" type="str"     value="UR_FK_IK/FKsrv" />
+<param name="UR_IKservice_TOPIC" type="str"     value="UR_FK_IK/IKsrv" />
+
+""  : ""    ,
+    ""  : ""
 
 <!-- ##### Service Node ##### -->
 

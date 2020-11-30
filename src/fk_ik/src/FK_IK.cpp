@@ -1,6 +1,11 @@
 #include "FK_IK.hpp"
 
+static bool _DEBUG = 1;
+
 /*************** class FK_IK_Service *********************************************************************************/
+
+
+/********** Init **********/
 
 FK_IK_Service::FK_IK_Service( ros::NodeHandle& _nh ){
     ROS_INFO( "FK/IK Node starting ..." );
@@ -47,20 +52,114 @@ bool FK_IK_Service::setup_kin_chain(){
     assert( N_joints == ul.data.size() );
     ROS_INFO( "SUCCESS: Loaded kinematic model with %d joints!" , N_joints );
 
-    // 6. Init joints
-    q = KDL::JntArray( N_joints );
-    for( uint j = 0 ; j < N_joints ; j++ ){  q(j) = ( ll(j) + ul(j) ) / 2.0;  }
-
     return true;
 }
 
 bool FK_IK_Service::fetch_params(){
     return
-        _nh.getParam( "base_link"   , base_link_name ) &&
-        _nh.getParam( "end_link"    , end_link_name  ) &&
-        _nh.getParam( "IK_timeout"  , IK_timeout     ) &&
-        _nh.getParam( "IK_epsilon"  , IK_epsilon     )    ;
+        _nh.getParam( "base_link"          , base_link_name   ) &&
+        _nh.getParam( "end_link"           , end_link_name    ) &&
+        _nh.getParam( "IK_timeout"         , IK_timeout       ) &&
+        _nh.getParam( "IK_epsilon"         , IK_epsilon       ) &&
+        _nh.getParam( "UR_FKservice_TOPIC" , FK_srv_topicName ) &&
+        _nh.getParam( "UR_IKservice_TOPIC" , IK_srv_topicName ) &&
+        1;
 }
+
+
+/********** FK / IK **********/
+
+bool FK_IK_Service::setup_FK(){
+    // Init the FK solver
+    fk_solver = new KDL::ChainFkSolverPos_recursive( chain ); // Forward kin. solver
+    return 1;
+}
+
+bool FK_IK_Service::setup_IK(){
+    /* NOTHING TO DO HERE */
+    return 1;
+}
+
+bool FK_IK_Service::check_q( const KDL::JntArray& q ){
+    // Check that the currently-set joint config lies within the limits
+    for( u_char i ; i < N_joints ; i++ ){
+        if(  ( q(i) < ll(i) )  ||  ( q(i) > ul(i) )  ) 
+            return false;
+    }
+    return true;
+}
+
+KDL::Frame FK_IK_Service::calc_FK( const boost::array<double,6>& jointConfig ){
+    KDL::JntArray q = load_q( jointConfig );
+    KDL::Frame    end_effector_pose;
+    if( check_q( q ) ){
+        fk_solver->JntToCart( q , end_effector_pose );
+    }else{
+        ROS_ERROR( "Received an FK request OUTSIDE of loaded robot's joint limits!" );
+    }
+    return end_effector_pose;
+}
+
+bool FK_IK_Service::FK_cb( ur_fk_ik::FK::Request& req, ur_fk_ik::FK::Response& rsp ){
+    if( _DEBUG )  cout << "FK service invoked!" << endl;
+    
+    rsp.data = KDL_frame_to_response_arr(  calc_FK( req.data )  );
+    
+    if( _DEBUG )  cout << "FK packed a response: " << rsp.data << endl;
+
+    return 1;
+}
+
+boost::array<double,7> FK_IK_Service::calc_IK( const boost::array<double,22>& bigIKarr ){
+    
+    boost::array<double,16> reqPose; // 4x4 homog pose
+    boost::array<double, 6> reqSeed; // 1x6 joint seed (search begins here)
+    
+    for( u_char i = 0 ; i < 22 ; i++ ){
+        if( i < 16 ){  reqPose[ i    ] = bigIKarr[i];  }
+        else{          reqSeed[ i-16 ] = bigIKarr[i];  }
+    }
+
+    KDL::Frame    reqFrame = request_arr_to_KDL_frame( reqPose );
+    KDL::JntArray seedArr  = request_arr_to_KDL_arr( reqSeed );
+    KDL::JntArray result;
+    int /*-----*/ valid = 0;
+
+    if( _DEBUG )  cout << "Request vars loaded!" << endl;
+
+    for( size_t i = 0 ; i < N_IKsamples ; i++ ){
+        valid = tracik_solver->CartToJnt( seedArr , reqFrame , result );
+        if( valid > 0 ){  break;                                      } // If the solution is valid, stop
+        else{             fuzz_seed_array( seedArr , IK_seed_fuzz );  } // Else nudge seed and try again
+    }
+
+    return IK_soln_to_IK_arr( result , valid );
+}
+
+bool FK_IK_Service::IK_cb( ur_fk_ik::IK::Request& req, ur_fk_ik::IK::Response& rsp ){
+
+    if( _DEBUG )  cout << "Entered the IK callback!" << endl;
+
+    rsp.data = calc_IK( req.data );
+    bool valid   = rsp.data[6] > 0;
+
+    if( _DEBUG )  cout << "Valid solution?: " << yesno( valid ) << ", ";
+    if( _DEBUG )  cout << "Solution Obtained: " << rsp.data << endl;
+
+    return valid;
+}
+
+/********** Services **********/
+
+bool FK_IK_Service::init_services(){
+    // string servName = "serv" ;
+    FKservice = _nh.advertiseService( FK_srv_topicName , &FK_IK_Service::FK_cb , this );
+    IKservice = _nh.advertiseService( IK_srv_topicName , &FK_IK_Service::IK_cb , this );
+    return 1;
+}
+
+
+/********** Shutdown **********/
 
 FK_IK_Service::~FK_IK_Service(){
     if( tracik_solver ) delete tracik_solver;

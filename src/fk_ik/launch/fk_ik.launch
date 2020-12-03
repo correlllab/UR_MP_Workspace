@@ -13,13 +13,12 @@
 
 <param name="base_link"          type="str"     value="base_link"      />
 <param name="end_link"           type="str"     value="wrist_3_link"   />
-<param name="IK_timeout"         type="double"  value="0.003"          />
-<param name="IK_epsilon"         type="double"  value="1e-5"           />
+<param name="IK_timeout"         type="double"  value="0.004"          />
+<param name="IK_epsilon"         type="double"  value="0.1875"         /> 
+<param name="IK_fuzz"            type="double"  value="0.0524"         />
+<param name="IK_samples"         type="int"     value="12"             />
 <param name="UR_FKservice_TOPIC" type="str"     value="UR_FK_IK/FKsrv" />
 <param name="UR_IKservice_TOPIC" type="str"     value="UR_FK_IK/IKsrv" />
-
-""  : ""    ,
-    ""  : ""
 
 <!-- ##### Service Node ##### -->
 

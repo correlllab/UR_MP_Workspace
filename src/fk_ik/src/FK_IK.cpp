@@ -15,6 +15,9 @@ FK_IK_Service::FK_IK_Service( ros::NodeHandle& _nh ){
     paramsOK = fetch_params(); // This must be done before setting up the arm!
     setup_kin_chain();
     if( paramsOK )  ROS_INFO( "Parameters located and loaded!" );  else  ROS_ERROR( "There was a PROBLEM loading parameters!" );
+    setup_FK();
+    setup_IK();
+    init_services();
 }
 
 bool FK_IK_Service::setup_kin_chain(){
@@ -26,19 +29,9 @@ bool FK_IK_Service::setup_kin_chain(){
            urdf_param = "/robot_description";
     bool   valid      = 0;
 
-    // 2. Search for parameter and fetch its contents
-    // if( _nh.searchParam( urdf_param , param_name ) ){
-    //     ROS_INFO("TEST: Found paramater");
-    //     int i = 0;
-    //     _nh.getParam( urdf_param , contents );
-    // }else{
-    //     // ROS_ERROR( ( "Could not find parameter!: " + urdf_param ).c_str() );
-    //     ROS_ERROR( "Could not find parameter!: %s" , urdf_param.c_str() );
-    //     return false;
-    // }  
-
     // 3. Init solver and retrieve the kinematic chain
     tracik_solver = new TRAC_IK::TRAC_IK( base_link_name , end_link_name , urdf_param , IK_timeout , IK_epsilon );
+
     valid /*---*/ = tracik_solver->getKDLChain( chain );
     if( !valid ){  ROS_ERROR("There was no valid KDL chain found");  return false;  }
 
@@ -52,18 +45,44 @@ bool FK_IK_Service::setup_kin_chain(){
     assert( N_joints == ul.data.size() );
     ROS_INFO( "SUCCESS: Loaded kinematic model with %d joints!" , N_joints );
 
+    if( _DEBUG ){
+        u_int32_t Nseg = chain.getNrOfSegments();
+        cout << "### Created a Kinematic Chain ###" << endl 
+             << "Base Link: _ " << base_link_name   << endl
+             << "End Link: __ " << end_link_name    << endl
+             << "Description: " << urdf_param       << endl
+             << "IK Timeout:  " << IK_timeout       << endl
+             << "IK Max Err:  " << IK_epsilon       << endl
+             << "IK Samples:  " << N_IKsamples      << endl
+             << "IK Fuzz: ___ " << IK_seed_fuzz     << endl
+             << "Joints: ____ " << (int) N_joints   << endl
+             << "Segments: __ " << Nseg             << endl;
+        KDL::Segment seg;
+        KDL::Joint   jnt;
+        for( u_int32_t i = 0 ; i < Nseg ; i++ ){
+            seg = chain.getSegment( i );
+            jnt = seg.getJoint();
+            cout << '\t' << i << ": " << seg.getName() << ", Joint: " << jnt.getName() << " - " << jnt.getTypeName() << endl;
+        }
+        
+    }
+
     return true;
 }
 
 bool FK_IK_Service::fetch_params(){
-    return
-        _nh.getParam( "base_link"          , base_link_name   ) &&
-        _nh.getParam( "end_link"           , end_link_name    ) &&
-        _nh.getParam( "IK_timeout"         , IK_timeout       ) &&
-        _nh.getParam( "IK_epsilon"         , IK_epsilon       ) &&
-        _nh.getParam( "UR_FKservice_TOPIC" , FK_srv_topicName ) &&
-        _nh.getParam( "UR_IKservice_TOPIC" , IK_srv_topicName ) &&
-        1;
+    int  smpl = 50;
+    bool okay = _nh.getParam( "base_link"          , base_link_name   ) &&
+                _nh.getParam( "end_link"           , end_link_name    ) &&
+                _nh.getParam( "IK_timeout"         , IK_timeout       ) &&
+                _nh.getParam( "IK_epsilon"         , IK_epsilon       ) &&
+                _nh.getParam( "IK_samples"         , smpl             ) &&
+                _nh.getParam( "IK_fuzz"            , IK_seed_fuzz     ) &&
+                _nh.getParam( "UR_FKservice_TOPIC" , FK_srv_topicName ) &&
+                _nh.getParam( "UR_IKservice_TOPIC" , IK_srv_topicName ) && 
+                1;
+    N_IKsamples = (u_short) smpl;
+    return okay;
 }
 
 
@@ -93,19 +112,24 @@ KDL::Frame FK_IK_Service::calc_FK( const boost::array<double,6>& jointConfig ){
     KDL::JntArray q = load_q( jointConfig );
     KDL::Frame    end_effector_pose;
     if( check_q( q ) ){
-        fk_solver->JntToCart( q , end_effector_pose );
+        if( fk_solver->JntToCart( q , end_effector_pose ) < 0 )  ROS_ERROR( "UNABLE to solve FK!" );
     }else{
         ROS_ERROR( "Received an FK request OUTSIDE of loaded robot's joint limits!" );
     }
     return end_effector_pose;
 }
 
-bool FK_IK_Service::FK_cb( ur_fk_ik::FK::Request& req, ur_fk_ik::FK::Response& rsp ){
+
+bool FK_IK_Service::FK_cb( ur_fk_ik::FK::Request& Req, ur_fk_ik::FK::Response& Rsp ){
     if( _DEBUG )  cout << "FK service invoked!" << endl;
+
+    cout << Req << endl;
+    cout << Req.q_joints << endl;
+    cout << Req.q_joints[0] << endl;
+
+    Rsp.poseMatx = KDL_frame_to_response_arr(  calc_FK( Req.q_joints )  );
     
-    rsp.data = KDL_frame_to_response_arr(  calc_FK( req.data )  );
-    
-    if( _DEBUG )  cout << "FK packed a response: " << rsp.data << endl;
+    if( _DEBUG )  cout << "FK packed a response: " << Rsp << endl;
 
     return 1;
 }
@@ -127,26 +151,38 @@ boost::array<double,7> FK_IK_Service::calc_IK( const boost::array<double,22>& bi
 
     if( _DEBUG )  cout << "Request vars loaded!" << endl;
 
-    for( size_t i = 0 ; i < N_IKsamples ; i++ ){
+    size_t i = 0;
+
+    for( i = 0 ; i < N_IKsamples ; i++ ){
         valid = tracik_solver->CartToJnt( seedArr , reqFrame , result );
-        if( valid > 0 ){  break;                                      } // If the solution is valid, stop
-        else{             fuzz_seed_array( seedArr , IK_seed_fuzz );  } // Else nudge seed and try again
+        // If the solution is valid, stop
+        if( valid > 0 ){  
+            break;
+        // Else nudge seed and try again
+        }else{
+            fuzz_seed_array( seedArr , IK_seed_fuzz );  
+        } 
     }
+
+    if( _DEBUG )  cout << "Exit IK after " << i+1 << " tries" << endl;
 
     return IK_soln_to_IK_arr( result , valid );
 }
 
-bool FK_IK_Service::IK_cb( ur_fk_ik::IK::Request& req, ur_fk_ik::IK::Response& rsp ){
+bool FK_IK_Service::IK_cb( ur_fk_ik::IK::Request& Req , ur_fk_ik::IK::Response& Rsp ){
 
     if( _DEBUG )  cout << "Entered the IK callback!" << endl;
 
-    rsp.data = calc_IK( req.data );
-    bool valid   = rsp.data[6] > 0;
+    Rsp.q_joints_valid = calc_IK( Req.pose_seed );
+
+    // FIXME: A SECOND ATTEMPT AT A TIGHTER EPS
+
+    bool valid         = Rsp.q_joints_valid[6] > 0;
 
     if( _DEBUG )  cout << "Valid solution?: " << yesno( valid ) << ", ";
-    if( _DEBUG )  cout << "Solution Obtained: " << rsp.data << endl;
+    if( _DEBUG )  cout << "Solution Obtained: " << Rsp.q_joints_valid << endl;
 
-    return valid;
+    return 1;
 }
 
 /********** Services **********/
@@ -202,7 +238,7 @@ int main( int argc , char** argv ){ // Main takes the terminal command and flags
 		/***** LOOP WORK *****/
 
 
-		break; // NOT EVEN ONCE
+		// break; // NOT EVEN ONCE
 		
 		
 		/***** LOOP TIMEKEEPING *****/

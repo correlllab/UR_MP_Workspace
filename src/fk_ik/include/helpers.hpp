@@ -54,7 +54,8 @@ void fuzz_seed_array( KDL::JntArray& seedArr , double fuzz_rad ); // Perturbate 
 // IK_soln_to_IK_arr: Pack the IK solution and its validity into a single boost array
 boost::array<double,7> IK_soln_to_IK_arr( const KDL::JntArray& jntArr , int valid ); 
 
+KDL::Frame request_arr_to_KDL_frame( const boost::array<double,16>& pose ); // Translate a flattened pose to a KDL pose
 
-
+KDL::JntArray request_arr_to_KDL_arr( const boost::array<double,6>& jntArr );
 
 #endif

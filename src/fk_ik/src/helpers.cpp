@@ -1,6 +1,6 @@
 #include "helpers.hpp"
 
-static bool _DEBUG = 1;
+static bool _DEBUG = 0;
 
 
 /******************** Utilities ********************/
@@ -66,5 +66,29 @@ boost::array<double,7> IK_soln_to_IK_arr( const KDL::JntArray& jntArr , int vali
         if( _DEBUG )  cout << '\t' << i << endl;
     }
     rtnArr[6] = (double) valid;
+    return rtnArr;
+}
+
+KDL::Frame request_arr_to_KDL_frame( const boost::array<double,16>& pose ){
+    // Translate a flattened pose to a KDL pose
+    size_t rotDex[9] = { 0, 1, 2,   4, 5, 6,  8, 9,10    }; // Rotation matrix
+    size_t trnDex[3] = {          3,        7,        11 }; // Translation vector
+    double rotTerms[9];
+    double trnTerms[3];
+    double rotTerm0 = pose[ rotDex[0] ];
+    for( u_char i = 0 ; i < 9 ; i++ ){
+        rotTerms[i] = pose[ rotDex[i] ];
+        if( i < 3 )
+            trnTerms[i] = pose[ trnDex[i] ];
+    }
+    return KDL::Frame( 
+        KDL::Rotation( rotTerms[1] , rotTerms[1] , rotTerms[2] , rotTerms[3] , rotTerms[4] , rotTerms[5] , rotTerms[6] , rotTerms[7] , rotTerms[8] ) , 
+        KDL::Vector( trnTerms[0] , trnTerms[1] , trnTerms[2] ) 
+    );
+}
+
+KDL::JntArray request_arr_to_KDL_arr( const boost::array<double,6>& jntArr ){
+    KDL::JntArray rtnArr(6);
+    for( size_t i = 0 ; i < 6 ; i++ ){  rtnArr(i) = jntArr[i];  }
     return rtnArr;
 }

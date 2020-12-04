@@ -30,7 +30,8 @@ bool FK_IK_Service::setup_kin_chain(){
     bool   valid      = 0;
 
     // 3. Init solver and retrieve the kinematic chain
-    tracik_solver = new TRAC_IK::TRAC_IK( base_link_name , end_link_name , urdf_param , IK_timeout , IK_epsilon );
+    tracik_solver  = new TRAC_IK::TRAC_IK( base_link_name , end_link_name , urdf_param , IK_timeout  , IK_epsilon  , TRAC_IK::Speed    ); // Stage 1
+    tracik_solver2 = new TRAC_IK::TRAC_IK( base_link_name , end_link_name , urdf_param , IK_timeout2 , IK_epsilon2 , TRAC_IK::Distance ); // Stage 2
 
     valid /*---*/ = tracik_solver->getKDLChain( chain );
     if( !valid ){  ROS_ERROR("There was no valid KDL chain found");  return false;  }
@@ -71,17 +72,28 @@ bool FK_IK_Service::setup_kin_chain(){
 }
 
 bool FK_IK_Service::fetch_params(){
-    int  smpl = 50;
-    bool okay = _nh.getParam( "base_link"          , base_link_name   ) &&
-                _nh.getParam( "end_link"           , end_link_name    ) &&
-                _nh.getParam( "IK_timeout"         , IK_timeout       ) &&
-                _nh.getParam( "IK_epsilon"         , IK_epsilon       ) &&
-                _nh.getParam( "IK_samples"         , smpl             ) &&
-                _nh.getParam( "IK_fuzz"            , IK_seed_fuzz     ) &&
-                _nh.getParam( "UR_FKservice_TOPIC" , FK_srv_topicName ) &&
-                _nh.getParam( "UR_IKservice_TOPIC" , IK_srv_topicName ) && 
-                1;
-    N_IKsamples = (u_short) smpl;
+    int  smpl  = 50 ,
+         smpl2 = 50;
+    bool okay = 
+        // Robot Seteup
+        _nh.getParam( "base_link" , base_link_name   ) &&
+        _nh.getParam( "end_link"  , end_link_name    ) &&
+        // Topic Setup
+        _nh.getParam( "UR_FKservice_TOPIC" , FK_srv_topicName ) &&
+        _nh.getParam( "UR_IKservice_TOPIC" , IK_srv_topicName ) &&
+        // Stage 1
+        _nh.getParam( "IK_timeout"  , IK_timeout   ) &&
+        _nh.getParam( "IK_epsilon"  , IK_epsilon   ) &&
+        _nh.getParam( "IK_samples"  , smpl         ) &&
+        _nh.getParam( "IK_fuzz"     , IK_seed_fuzz ) && 
+        // Stage 2
+        _nh.getParam( "IK_timeout2" , IK_timeout2   ) &&
+        _nh.getParam( "IK_epsilon2" , IK_epsilon2   ) &&
+        _nh.getParam( "IK_samples2" , smpl2         ) &&
+        _nh.getParam( "IK_fuzz2"    , IK_seed_fuzz2 ) && 
+        1;
+    N_IKsamples  = (u_short) smpl;
+    N_IKsamples2 = (u_short) smpl2;
     return okay;
 }
 
@@ -145,9 +157,17 @@ boost::array<double,7> FK_IK_Service::calc_IK( const boost::array<double,22>& bi
     }
 
     KDL::Frame    reqFrame = request_arr_to_KDL_frame( reqPose );
+    
+    // Stage 1
     KDL::JntArray seedArr  = request_arr_to_KDL_arr( reqSeed );
     KDL::JntArray result;
     int /*-----*/ valid = 0;
+    // Stage 2
+    KDL::JntArray seedArr2;
+    KDL::JntArray result2;
+    int /*-----*/ valid2 = 0 , 
+                  validL = 0 ;
+    
 
     if( _DEBUG )  cout << "Request vars loaded!" << endl;
 
@@ -164,9 +184,32 @@ boost::array<double,7> FK_IK_Service::calc_IK( const boost::array<double,22>& bi
         } 
     }
 
+    if( valid > 0 ){
+
+        seedArr2 = result;
+
+        for( i = 0 ; i < N_IKsamples2 ; i++ ){
+            valid2 = tracik_solver2->CartToJnt( seedArr2 , reqFrame , result2 );
+            // If the solution is valid, stop
+            if( valid2 > 0 ){  
+                seedArr2 = result2;
+                validL   = valid2;
+            // Else nudge seed and try again
+            }else{
+                fuzz_seed_array( seedArr2 , IK_seed_fuzz2 );  
+            }
+        } 
+    }
+
     if( _DEBUG )  cout << "Exit IK after " << i+1 << " tries" << endl;
 
-    return IK_soln_to_IK_arr( result , valid );
+    if( validL > 0 ){
+        return IK_soln_to_IK_arr( seedArr2 , valid2 );
+    }else{
+        return IK_soln_to_IK_arr( result   , valid  );
+    }
+
+    
 }
 
 bool FK_IK_Service::IK_cb( ur_fk_ik::IK::Request& Req , ur_fk_ik::IK::Response& Rsp ){

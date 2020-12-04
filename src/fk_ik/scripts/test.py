@@ -26,6 +26,7 @@ def prepend_dir_to_path( pathName ): sys.path.insert( 0 , pathName ) # Might nee
 # ~~ Standard ~~
 from math import pi , sqrt , sin , cos
 from random import random
+# from statistics import median
 
 # ~~ Special ~~
 import numpy as np
@@ -35,6 +36,18 @@ from geometry_msgs.msg import PoseStamped, Point, Twist
 
 # ~~ Local ~~
 from ur_fk_ik.srv import FK , IK
+
+def median( numLst ):
+    n = len( numLst ) 
+    numLst.sort() 
+    
+    if n % 2 == 0: 
+        median1 = numLst[n//2] 
+        median2 = numLst[n//2 - 1] 
+        mdn = (median1 + median2)/2
+    else: 
+        mdn = numLst[n//2]
+    return mdn
 
 def load_arr_to_pose( rspArr ):
     """ Reshape 1x16 array into 4x4 homogeneous matrix """
@@ -106,8 +119,9 @@ class FK_IK_Tester:
     def test2( self ):
 
         wins   =   0
-        Nrpt   = 200
+        Nrpt   = 100
         errTot =   0
+        errs   = []
 
         for i in range( Nrpt ):
 
@@ -142,12 +156,14 @@ class FK_IK_Tester:
                 linDiff = np.linalg.norm( np.subtract( FKrsp[0:3,3] , FKcrs[0:3,3] ) )
                 print "\tLinear Difference:" , linDiff
                 errTot += linDiff
+                errs.append( linDiff )
 
             print "Got IK response: " , IKrsp.q_joints_valid[:6] , "is it valid?:" , IKrsp.q_joints_valid[6]
             print "\n"
 
         print wins , "/" , Nrpt , "valid answers"
         print errTot / wins , "average linear error across valid answers"
+        print median( errs ) , "median linear error"
 
 if __name__ == "__main__":
     node = FK_IK_Tester()

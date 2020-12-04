@@ -77,11 +77,21 @@ KDL::JntArray ll , // ------ lower joint limits
 KDL::ChainFkSolverPos_recursive* fk_solver; //(chain); // Forward kin. solver
 
 /** IK Solver and Params **/
+
+/* Stage 1 */ 
 TRAC_IK::TRAC_IK* tracik_solver = nullptr;
 u_short /*----*/ N_IKsamples;
 double /*-----*/ IK_timeout   , 
                  IK_epsilon   ,
                  IK_seed_fuzz ;
+
+/* Stage 2 */ 
+TRAC_IK::TRAC_IK* tracik_solver2 = nullptr;
+u_short /*----*/ N_IKsamples2;
+double /*-----*/ IK_timeout2   , 
+                 IK_epsilon2   ,
+                 IK_seed_fuzz2 ;
+
 
 /** Internal Functions **/
 bool setup_kin_chain();
